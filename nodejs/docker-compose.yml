@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: url_shortened
+    ports:
+      ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d url_shortened"]
+      interval: 2s
+      timeout: 30s
+      retries: 15
+volumes:
+  pgdata:

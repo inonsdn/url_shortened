@@ -1,7 +1,13 @@
 import Fastify from "fastify";
+import pg from "pg";
 import {randomCode} from "./utils/base62.js"
+import { createStore } from "./db/pgx.js";
 
 const app = Fastify({logger: true});
+
+const db = new pg.Pool({connectionString: process.env.DATABASE_URL});
+
+const store = createStore(db)
 
 const MockDB = new Map<string, string>()
 const MockDB2 = new Map<string, string>()
@@ -20,31 +26,38 @@ app.post<{Body: {url: string}}>("/api/v1/shorten", async (req, res) => {
     }
 
     // get from db, if found existing, return it
-    const shortenedUrl = MockDB.get(url)
-    if (shortenedUrl !== undefined) {
-        return res.code(200).send({"code": shortenedUrl, "orig": url})
+    // const shortenedUrl = MockDB.get(url)
+    const code = await store.findCodeByUrl(url)
+    if (code !== null) {
+        return res.code(200).send({"code": code, "orig": url})
     }
 
     // generate the url
-    let generatedUrl = randomCode(8)
+    let generatedCode = randomCode(8)
 
     // verify that generated must unique
-    while (MockDB2.has(generatedUrl)) {
-        generatedUrl = randomCode(8)
+    while (await store.findUrlByCode(generatedCode) !== null) {
+        generatedCode = randomCode(8)
     }
 
-    // set to db
-    MockDB.set(url, generatedUrl)
-    MockDB2.set(generatedUrl, url)
 
-    return res.code(201).send({"code": generatedUrl, "orig": url})
+    const savePass = await store.save(generatedCode, url)
+    if (!savePass) {
+        return res.code(500).send({error:"Cannot shorten url"})
+    }
+    // // set to db
+    // MockDB.set(url, generatedCode)
+    // MockDB2.set(generatedCode, url)
+
+    return res.code(201).send({"code": generatedCode, "orig": url})
 })
 
 app.get<{Params: {code: string}}>("/:code", async (req, res) => {
     const {code} = req.params
 
-    const url = MockDB2.get(code)
-    if (url === undefined) {
+    // const url = MockDB2.get(code)
+    const url = await store.findUrlByCode(code)
+    if (url === null) {
         return res.code(404).send({"error": "Not found"})
     }
 
