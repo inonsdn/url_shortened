@@ -10,19 +10,42 @@ const app = Fastify({logger: true});
 const db = new pg.Pool({connectionString: process.env.DATABASE_URL});
 const store = createStore(db)
 
-const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379")
+const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
+    maxRetriesPerRequest: 1, // give up on a command quickly
+    enableOfflineQueue: false, // while disconnected, reject at once instead of queuing
+    connectTimeout: 2000, // ms
+    commandTimeout: 500 // ms
+})
 const cache = createCache(redis)
 
-app.get("/health", async (_req, res) => {
+function parseUrl(raw: unknown): string | null {
+    if (typeof raw !== "string" || raw.length > 2048) {
+        return null
+    }
+
+    try {
+        const url = new URL(raw)
+        if (url.protocol === "http" || url.protocol === "https") {
+            return url.href
+        }
+    } catch {
+        return null
+    }
+    return null
+}
+
+app.get("/myhealth", async (_req, res) => {
     return res.code(200).send({ok:"done"})
 });
 
 // api for shorten url from request
 // response with shortened url
 app.post<{Body: {url: string}}>("/api/v1/shorten", async (req, res) => {
-    const { url } = req.body
+    // const { url } = req.body
 
-    if (url === undefined) {
+    const url = parseUrl(req.body?.url)
+
+    if (url === null) {
         return res.code(400).send({error: "Invalid URL"})
     }
 
@@ -98,7 +121,7 @@ process.on("SIGTERM", shutdown)
 process.on("SIGINT", shutdown)
 
 const host = process.env.HOST ?? "0.0.0.0"
-const port = Number(process.env.PORT) ?? 8080
+const port = Number(process.env.PORT ?? 8080)
 try {
     await app.listen({port: port, host: host})
 } catch (err) {
