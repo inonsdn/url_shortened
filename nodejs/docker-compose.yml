@@ -19,5 +19,19 @@ services:
     image: redis:7
     command: ["redis-server", "--maxmemory", "100mb", "--maxmemory-policy", "allkeys-lru"]
     ports: ["6379:6379"]
+  api:
+    build: .                     # use the Dockerfile in this folder
+    init: true                   # forwards Ctrl+C / docker stop to Node properly
+    environment:
+      PORT: 8080
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://app:admin@postgres:5432/url_shortened
+      REDIS_URL: redis://redis:6379
+    ports: ["8080:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 volumes:
   pgdata:

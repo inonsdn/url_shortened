@@ -5,8 +5,11 @@ const N = 31536000
 
 const BASE = __ENV.BASE || "http://localhost:8080"
 
+const SKEW = Number(__ENV.SKEW || 4)
+
 export const options = {
   maxRedirects: 0,   // IMPORTANT: don't follow the 302 to example.com
+  summaryTrendStats: ["avg", "med", "p(95)", "p(99)", "max"],
   scenarios: {
     writes: {
       executor: "constant-arrival-rate", exec: "shorten",
@@ -22,7 +25,7 @@ export const options = {
 }
 
 function popularCode() {
-    const i = 1 + Math.floor(N * Math.pow(Math.random(), 4))
+    const i = 1 + Math.floor(N * Math.pow(Math.random(), SKEW))
     return "b" + i.toString(16).padStart(9, "0")
 }
 

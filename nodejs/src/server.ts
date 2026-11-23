@@ -25,7 +25,7 @@ function parseUrl(raw: unknown): string | null {
 
     try {
         const url = new URL(raw)
-        if (url.protocol === "http" || url.protocol === "https") {
+        if (url.protocol === "http:" || url.protocol === "https:") {
             return url.href
         }
     } catch {

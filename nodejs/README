@@ -1,0 +1,43 @@
+```
+hitrate() {
+  docker compose exec redis redis-cli INFO stats | tr -d '\r' | awk -F: '
+    /keyspace_hits/ {h=$2} /keyspace_misses/ {m=$2}
+    END { printf "hits=%d misses=%d hit rate=%.1f%%\n", h, m, (h+m) ? 100*h/(h+m) : 0 }'
+}
+```
+
+### Run A: baseline (warm cache, skewed traffic)
+```
+mkdir -p results
+k6 run loadtest/redirect.js > /dev/null                 # warm-up run, result ignored
+docker compose exec redis redis-cli CONFIG RESETSTAT
+k6 run --summary-export=results/A-baseline.json loadtest/redirect.js
+hitrate
+```
+
+### Run B: cold cache
+```
+docker compose exec redis redis-cli FLUSHALL            # empty the cache
+docker compose exec redis redis-cli CONFIG RESETSTAT
+k6 run --summary-export=results/B-cold.json loadtest/redirect.js
+hitrate
+```
+
+### Run C: Redis goes down mid-test
+```
+# terminal 2
+docker compose exec redis redis-cli CONFIG RESETSTAT
+k6 run --summary-export=results/C-redis-down.json loadtest/redirect.js
+
+# terminal 3: wait 40 seconds, then stop Redis
+sleep 40 && docker compose stop redis
+```
+
+### Run D: uniform traffic (no popular links)
+```
+docker compose exec redis redis-cli FLUSHALL
+k6 run -e SKEW=1 loadtest/redirect.js > /dev/null      # warm-up with the same traffic shape
+docker compose exec redis redis-cli CONFIG RESETSTAT
+k6 run -e SKEW=1 --summary-export=results/D-uniform.json loadtest/redirect.js
+hitrate
+```
